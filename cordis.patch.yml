@@ -1,0 +1,14 @@
+# dsh-deepseek-balance composition rows.
+#
+# Installation (deepseek-harness web profile):
+#   cd ~/.dsh/profiles/web
+#   dsh plugin --profile web add file:../<path-to>/dsh-deepseek-balance
+# then append the `insert` block below to ~/.dsh/profiles/web/cordis.patch.yml
+# (the profile's user patch layer), and restart the web profile.
+#
+# A single row activates both halves: the host plugin (polling, state file,
+# /dsbal/* routes) and, because the package declares `dsh.client`, the browser
+# roster entry (the bottom-right widget).
+- insert:
+    - id: dsh-deepseek-balance
+      name: dsh-deepseek-balance

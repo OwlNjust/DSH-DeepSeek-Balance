@@ -4,7 +4,6 @@ A persistent [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 plugin that monitors your DeepSeek account balance and API usage, with a
 bottom-right floating widget.
 
-![widget](docs/widget.png)
 
 ## Features
 

@@ -4,7 +4,6 @@
 监控 DeepSeek 账号余额与 API 用量，以**右下角悬浮小组件**常驻显示，
 并在高峰时段（梁文峰）提醒你不要大量使用 API。
 
-![widget](docs/widget.png)
 
 ## 功能
 

@@ -15,8 +15,9 @@ bottom-right floating widget.
   输出, the same official platform numbers (`/usage/amount`).
 - **Liang Wenfeng / Liang Wengu price reminder** — the widget shows the
   current price window at a glance: 🔴 梁文峰 = peak hours
-  (Beijing 09:00–12:00, 14:00–18:00, ×2 price) and 🟢 梁文谷 = off-peak
-  (everything else, ~50% price), with a countdown to the next switch. Peak
+  (Beijing **Mon–Fri 09:00–12:00, 14:00–18:00**, ×2 price) and 🟢 梁文谷 = off-peak
+  (everything else, **including all day on weekends**, ~50% price), with a
+  countdown to the next switch. Peak
   hours are highlighted in red to discourage heavy API use.
 - **Faithful to the official docs** — pricing windows follow
   <https://api-docs.deepseek.com/zh-cn/quick_start/pricing>.

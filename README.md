@@ -1,47 +1,33 @@
 # dsh-deepseek-balance
 
-A persistent [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-plugin that monitors your DeepSeek account balance and API usage, with a
-bottom-right floating widget.
-
+> Real-time DeepSeek balance & usage monitor for **DeepSeek Harness** — a floating
+> widget at the bottom-right corner that reminds you when API prices peak.
+>
+> **[中文](README.zh.md) · English**
 
 ## Features
 
-- **Real-time balance** — total available balance and topped-up (recharge)
-  balance from the official `GET /user/balance` endpoint (polled every 5 min).
-- **Period consumption** — 今天 / 近24小时 / 近7天 / custom start date,
-  with per-model breakdown (`/usage/cost`).
-- **Token usage in three categories** — 输入(命中缓存) / 输入(未命中缓存) /
-  输出, the same official platform numbers (`/usage/amount`).
-- **Liang Wenfeng / Liang Wengu price reminder** — the widget shows the
-  current price window at a glance: 🔴 梁文峰 = peak hours
-  (Beijing **Mon–Fri 09:00–12:00, 14:00–18:00**, ×2 price) and 🟢 梁文谷 = off-peak
-  (everything else, **including all day on weekends**, ~50% price), with a
-  countdown to the next switch. Peak
-  hours are highlighted in red to discourage heavy API use.
-- **Faithful to the official docs** — pricing windows follow
-  <https://api-docs.deepseek.com/zh-cn/quick_start/pricing>.
+- **Balance** — total and topped-up balance from the official `GET /user/balance`, refreshed every 5 minutes.
+- **Period consumption** — today / 24h / 7d / custom start date, with per-model breakdown (`/usage/cost`).
+- **Token usage** — cache-hit input / cache-miss input / output, same numbers as the platform dashboard (`/usage/amount`).
+- **Price window reminder** — 🔴 **梁文峰** (peak: Beijing Mon–Fri 09:00–12:00, 14:00–18:00, ×2 price) vs 🟢 **梁文谷** (off-peak: everything else incl. weekends, ~50% price), with a live countdown. Peak is highlighted in red to discourage heavy API use.
+
+Pricing windows follow the [official docs](https://api-docs.deepseek.com/zh-cn/quick_start/pricing).
 
 ## Requirements
 
-- A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-  deployment with the **web profile** (`dsh web`).
+- A DeepSeek Harness deployment with the **web profile** (`dsh web`).
 - A DeepSeek **API key** (platform.deepseek.com → API keys).
-- Optional: the platform **userToken** (from `platform.deepseek.com` →
-  DevTools → Application → Local Storage) for exact per-day cost/token
-  statistics. Without it the plugin falls back to balance-snapshot estimates.
+- Optional: platform **userToken** for exact cost/token statistics (from `platform.deepseek.com` → DevTools → Application → Local Storage). Without it, consumption falls back to balance-snapshot estimates.
 
 ## Installation
-
-From your dsh installation:
 
 ```sh
 cd ~/.dsh/profiles/web
 dsh plugin --profile web add file:../<path-to>/dsh-deepseek-balance
 ```
 
-Then append this block to `~/.dsh/profiles/web/cordis.patch.yml`
-(the profile's user patch layer):
+Append to `~/.dsh/profiles/web/cordis.patch.yml`:
 
 ```yaml
 - insert:
@@ -49,60 +35,42 @@ Then append this block to `~/.dsh/profiles/web/cordis.patch.yml`
       name: dsh-deepseek-balance
 ```
 
-Restart the profile (`dsh web`). The widget appears in the bottom-right
-corner; click it to expand, use **配置** to paste your API key (and the
-optional platform userToken), then click **保存**.
+Restart the profile (`dsh web`). Click the widget → **配置** → paste your API key (and the optional userToken) → **保存**.
 
-> npm distribution: after `npm publish`, users can simply run
-> `dsh plugin --profile web add dsh-deepseek-balance`.
+> Published to npm, installation is one command: `dsh plugin --profile web add dsh-deepseek-balance`.
+
+## Usage
+
+| Thing | Where |
+| --- | --- |
+| API key / userToken | widget → 配置 |
+| Time window | widget chips (今天 / 24h / 7天 / custom) |
+| Refresh | 刷新 button (or automatic every 5 min / 30 s) |
+| Pill summary | bottom-right: current price window + balance + period spend |
 
 ## Persistence
 
-Unlike session-local dynamic plugins, this is a regular composition plugin:
-it is loaded by the profile at startup, so **it survives `dsh` restarts**.
-All configuration and balance-snapshot history are stored in
-`~/.deepseek-balance.json`.
+A regular composition plugin, loaded by the profile at startup — it **survives `dsh` restarts**. All configuration and balance-snapshot history live in `~/.deepseek-balance.json` (mode 0600); never share that file.
 
-## Configuration
-
-| Field | Where | Purpose |
-| --- | --- | --- |
-| API Key | widget → 配置 | required; balance endpoint |
-| userToken | widget → 配置 | optional; exact usage endpoints |
-| Time window | widget chips | 今天 / 24h / 7天 / custom |
-
-## How it works
+## Architecture
 
 ```
-┌──────────────────────────── dsh web profile ────────────────────────────┐
-│ host plugin (lib/index.js)                                              │
-│   · polls balance + usage every 5 min (fetch)                           │
-│   · persists to ~/.deepseek-balance.json                                │
-│   · serves JSON at /dsbal/state | /dsbal/refresh | /dsbal/config |       │
-│     /dsbal/window (same-origin HTTP on the harness web server)          │
-│                                                                          │
-│ client module (lib/client.js, window.__ModuleLoader__ artifact)          │
-│   · registers the bottom-right widget in the shell.overlay slot          │
-│   · fetch()s the /dsbal/* routes; refreshes every 30 s                   │
-└──────────────────────────────────────────────────────────────────────────┘
+host plugin lib/index.js     poll (fetch) → ~/.deepseek-balance.json
+                             serve JSON at /dsbal/state|refresh|config|window
+client module lib/client.js  window.__ModuleLoader__ artifact
+                             registers the shell.overlay widget; fetch() the routes
 ```
 
-## Disclaimer
+## Notes
 
-- The `/usage/cost` and `/usage/amount` endpoints are private
-  platform-dashboard endpoints (not in the public API docs); they may change
-  without notice. The plugin degrades gracefully to balance-snapshot
-  estimation when they are unavailable.
-- Never share your API key or userToken: they are stored unencrypted in
-  `~/.deepseek-balance.json` (mode 0600).
+- `/usage/cost` and `/usage/amount` are **private** platform-dashboard endpoints (not in the public docs) and may change; the plugin degrades to snapshots automatically. Usage data is **account-wide** — the platform API does not filter by API key.
+- A `userToken` naturally expires; usage data may lag by up to 1 hour (memory caching); hit 刷新 for fresh numbers.
+- Node.js ≥ 20 recommended (global `fetch` + `AbortSignal.timeout`).
 
 ## Contributing
 
-Issues, PRs and feature ideas are welcome (threshold alerts, per-model
-filtering, …). Please keep the client half in sync with the
-`window.__ModuleLoader__` artifact format used by dsh's web client module
-system.
+Issues and PRs welcome — e.g. threshold alerts for peak-hour spending, per-model filtering, more locales. Keep `lib/client.js` in the `window.__ModuleLoader__` artifact format.
 
 ## License
 
-MIT
+[MIT](LICENSE)

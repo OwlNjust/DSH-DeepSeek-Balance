@@ -75,10 +75,11 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
   vs 🟢 **梁文谷** (off-peak: everything else, weekends included, ~50% price), live countdown,
   red highlight during peak. Windows follow the
   [official pricing docs](https://api-docs.deepseek.com/zh-cn/quick_start/pricing).
-- **Draggable placement** — press-and-drag the pill with the **left or right mouse button**
-  to move it anywhere; the position is remembered automatically. Right-clicking the pill
-  never opens the browser menu (the pill is a drag handle by design). The expanded panel
-  auto-fits the viewport edges, and the pill is clamped back into view after window resizes.
+- **Draggable placement** — **right-click press-and-drag** the pill to move it anywhere;
+  the position is remembered automatically (left click simply expands the panel).
+  Right-clicking the pill never opens the browser menu (the pill is a drag handle by design).
+  The expanded panel auto-fits the viewport edges, and the pill is clamped back into view
+  after window resizes.
 
 ## Usage
 

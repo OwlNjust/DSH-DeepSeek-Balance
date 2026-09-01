@@ -79,7 +79,8 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
   the position is remembered automatically (left click simply expands the panel).
   Right-clicking the pill never opens the browser menu (the pill is a drag handle by design).
   The expanded panel auto-fits the viewport edges, and the pill is clamped back into view
-  after window resizes.
+  after window resizes. A「重置位置（右下角）」button at the panel bottom restores the
+  default bottom-right position.
 
 ## Usage
 

@@ -32,10 +32,7 @@
   ],
   "dsh": {
     "client": {
-      "platform": "web",
-      "inject": [
-        "@deepseek-ai/dsh-client-runtime"
-      ]
+      "platform": "web"
     }
   }
 }

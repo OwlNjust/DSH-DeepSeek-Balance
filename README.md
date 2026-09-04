@@ -60,7 +60,8 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
 
 ## Requirements
 
-- A DeepSeek Harness deployment with the **web profile** (`dsh web`); Node.js ≥ 20.
+- A DeepSeek Harness deployment with the **web profile** (`dsh web`); Node.js ≥ 20
+  (verified against deepseek-harness **v0.1.2-rc.1**).
 - A DeepSeek **API key** (platform.deepseek.com → API keys).
 - Optional: platform **userToken** (platform.deepseek.com → DevTools → Application →
   Local Storage) for exact cost/token stats. Without it, consumption falls back

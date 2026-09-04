@@ -55,7 +55,8 @@ curl -s http://127.0.0.1:3080/dsbal/state
 
 ## 前置条件
 
-- deepseek-harness 的 **web profile**（`dsh web`）；Node.js ≥ 20。
+- deepseek-harness 的 **web profile**（`dsh web`）；Node.js ≥ 20
+  （本插件已在 deepseek-harness **v0.1.2-rc.1** 上适配验证）。
 - DeepSeek **API Key**（platform.deepseek.com → API keys）。
 - 可选：平台 **userToken**（platform.deepseek.com → F12 → Application → Local Storage），
   用于精确统计消耗/Token；未配置时自动回退为余额快照估算。

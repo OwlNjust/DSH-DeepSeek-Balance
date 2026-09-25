@@ -34,5 +34,9 @@
     "client": {
       "platform": "web"
     }
+  },
+  "scripts": {
+    "test": "node test/phase.test.mjs",
+    "check": "node --check lib/index.js && node --check lib/client.js"
   }
 }

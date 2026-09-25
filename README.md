@@ -72,9 +72,10 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
 - **Balance** — total and topped-up balance via the official `GET /user/balance`, polled every 5 min.
 - **Period consumption** — today / 24h / 7d / custom start date, with per-model breakdown (`/usage/cost`).
 - **Token usage** — cache-hit input / cache-miss input / output, identical to the platform dashboard (`/usage/amount`).
-- **Price window reminder** — 🔴 **梁文峰** (peak: Beijing Mon–Fri 09:00–12:00 & 14:00–18:00, ×2 price)
-  vs 🟢 **梁文谷** (off-peak: everything else, weekends included, ~50% price), live countdown,
-  red highlight during peak. Windows follow the
+- **Price window reminder** — 🔴 **梁文峰** (peak: Beijing Mon–Fri 09:00–12:00 & 14:00–18:00,
+  **excluding Chinese statutory holidays**, ×2 price) vs 🟢 **梁文谷** (off-peak: everything else,
+  **including weekends and statutory holidays all day**, 50% price), live countdown,
+  red highlight during peak and a 🎉 badge on holidays. Windows follow the
   [official pricing docs](https://api-docs.deepseek.com/zh-cn/quick_start/pricing).
 - **Draggable placement** — **right-click press-and-drag** the pill to move it anywhere;
   the position is remembered automatically (left click simply expands the panel).
@@ -110,11 +111,19 @@ client module lib/client.js  window.__ModuleLoader__ artifact
 - A `userToken` expires naturally; usage may lag by up to 1 hour (memory cache);
   the 刷新 button clears it.
 - Keys are stored unencrypted in `~/.deepseek-balance.json` (0600) — never share it.
+- Statutory holidays come from the **annual State Council notice** and are currently
+  bundled for **2026**. After the new year the plugin must be updated to know the next
+  year's holidays; an unlisted year is flagged「节假日数据待更新」and judged as plain
+  Mon–Fri until then.
 
 ## Contributing
 
 Issues and PRs welcome (peak-hour threshold alerts, per-model filtering, locales…).
 Keep `lib/client.js` in the `window.__ModuleLoader__` artifact format.
+
+After touching the phase algorithm (the `phase:begin`/`phase:end` block in `lib/index.js`)
+run `npm test`: `test/phase.test.mjs` extracts that very block and asserts 28 cases
+(weekdays / weekends / statutory holidays / merged holiday runs / unlisted-year fallback).
 
 ## License
 

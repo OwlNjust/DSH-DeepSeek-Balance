@@ -1,5 +1,7 @@
 # dsh-deepseek-balance
 
+[![test](https://github.com/OwlNjust/DSH-DeepSeek-Balance/actions/workflows/test.yml/badge.svg)](https://github.com/OwlNjust/DSH-DeepSeek-Balance/actions/workflows/test.yml)
+
 > DeepSeek balance & usage monitor for **DeepSeek Harness** — a floating widget at the
 > bottom-right corner with a peak/off-peak (梁文峰 / 梁文谷) price reminder.
 >

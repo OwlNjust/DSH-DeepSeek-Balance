@@ -1,0 +1,44 @@
+# CI: syntax check + phase-algorithm unit tests.
+#
+# Runs on GitHub's runners, so it is independent of this machine's network
+# (WSL cannot reach github.com directly — pushes go out from the Windows side;
+# everything after that happens in the cloud).
+#
+# The package has ZERO runtime dependencies, so no `npm install` step is needed:
+# the test only imports node: builtins. Keep it that way and CI stays fast and
+# immune to dependency drift.
+#
+# NOTE: this only proves syntax + unit tests. It cannot prove the plugin mounts
+# in a real harness (that needs a live `dsh web`) — do that by hand.
+
+name: test
+
+on:
+  push:
+  pull_request:
+
+# A newer push to the same ref supersedes an in-flight run.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 = the documented minimum (README "Requirements"); 24 = current local.
+        node-version: [20, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Syntax check
+        run: npm run check
+      - name: Unit tests (peak/valley phase + holiday calendar)
+        run: npm test

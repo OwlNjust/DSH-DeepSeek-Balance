@@ -109,8 +109,9 @@ curl -s http://127.0.0.1:3080/dsbal/state
 欢迎 Issue / PR（高峰阈值提醒、按模型筛选、多语言等）。
 请保持 `lib/client.js` 的 `window.__ModuleLoader__` 产物格式。
 
-改动时段算法（`lib/index.js` 中 `phase:begin`/`phase:end` 之间）后请跑 `npm test`：
-`test/phase.test.mjs` 会直接从源码抽取该代码块做 28 项断言（工作日/周末/法定节假日/跨节日合并/未收录年份回退）。
+改动时段算法（`lib/index.js` 中 `phase:begin`/`phase:end` 之间）或 `/dsbal/*` 请求校验后请跑 `npm test`：
+`test/phase.test.mjs`（28 项：工作日/周末/法定节假日/跨节日合并/未收录年份回退）与
+`test/routes.test.mjs`（14 项：非法 id／非 JSON／类型错误必须 400 且不改状态）均直接从源码抽取对应代码块执行。
 
 ## License
 

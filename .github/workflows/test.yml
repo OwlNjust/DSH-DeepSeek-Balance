@@ -40,5 +40,5 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Syntax check
         run: npm run check
-      - name: Unit tests (peak/valley phase + holiday calendar)
+      - name: Unit tests (phase + holiday calendar + request validation)
         run: npm test

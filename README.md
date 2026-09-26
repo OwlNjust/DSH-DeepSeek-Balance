@@ -124,8 +124,11 @@ Issues and PRs welcome (peak-hour threshold alerts, per-model filtering, locales
 Keep `lib/client.js` in the `window.__ModuleLoader__` artifact format.
 
 After touching the phase algorithm (the `phase:begin`/`phase:end` block in `lib/index.js`)
-run `npm test`: `test/phase.test.mjs` extracts that very block and asserts 28 cases
-(weekdays / weekends / statutory holidays / merged holiday runs / unlisted-year fallback).
+or the `/dsbal/*` request validation (`requests:begin`/`requests:end`) run `npm test`:
+`test/phase.test.mjs` (28 cases: weekdays / weekends / statutory holidays / merged holiday
+runs / unlisted-year fallback) and `test/routes.test.mjs` (14 cases: an invalid id, a
+non-JSON body or a wrong field type must answer 400 and change no state). Both extract the
+very code they test from `lib/index.js`.
 
 ## License
 

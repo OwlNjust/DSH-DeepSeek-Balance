@@ -39,7 +39,7 @@
     }
   },
   "scripts": {
-    "test": "node test/phase.test.mjs && node test/routes.test.mjs && node test/package.test.mjs",
-    "check": "node --check lib/index.js && node --check lib/client.js"
+    "test": "node test/phase.test.mjs && node test/window.test.mjs && node test/routes.test.mjs && node test/package.test.mjs",
+    "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/phase.js && node --check lib/window.js && node --check lib/deepseek.js && node --check lib/validate.js"
   }
 }

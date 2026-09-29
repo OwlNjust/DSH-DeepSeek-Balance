@@ -1,39 +1,15 @@
-// Unit tests for the peak/valley price-phase algorithm in lib/index.js.
+// Unit tests for the peak/valley price-phase algorithm in lib/phase.js.
 //
-// The phase code is extracted verbatim from lib/index.js between the
-// `// ---- phase:begin` / `// ---- phase:end ----` markers and evaluated in a
-// sandbox, so the tests exercise the SHIPPING code instead of a copy that can
-// drift. Run with:  node test/phase.test.mjs   (or: npm test)
+// This suite imports the real module — the algorithm used to live inside
+// lib/index.js and was evaluated by slicing source text out of it, which made
+// every refactor fail the "source shape" assertions. Run: node test/phase.test.mjs
 //
 // Rule under test (official pricing docs, 2026):
 //   空闲时段价格为高峰时段价格的一半。北京时间周一至周五（不含中国法定节假日）
 //   9:00-12:00、14:00-18:00 为高峰时段；其余时段，包括周末及中国法定节假日全天
 //   均为空闲时段。
 
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-const HERE = dirname(fileURLToPath(import.meta.url))
-const SOURCE = join(HERE, '..', 'lib', 'index.js')
-const BJ_OFFSET = 8 * 3600 * 1000
-
-function loadPhase() {
-  const src = readFileSync(SOURCE, 'utf8')
-  const begin = src.indexOf('// ---- phase:begin')
-  const end = src.indexOf('// ---- phase:end ----')
-  if (begin < 0 || end < 0 || end <= begin) {
-    throw new Error('phase markers not found in lib/index.js — keep the // ---- phase:begin / end ---- comments')
-  }
-  const block = src.slice(src.indexOf('\n', begin) + 1, end)
-  const factory = new Function(
-    'BJ_OFFSET',
-    block + '\nreturn { phaseInfo, bjtDateKey, CN_HOLIDAY_SET, CN_HOLIDAY_YEARS }',
-  )
-  return factory(BJ_OFFSET)
-}
-
-const { phaseInfo, CN_HOLIDAY_SET, CN_HOLIDAY_YEARS } = loadPhase()
+import { BJ_OFFSET, CN_HOLIDAY_SET, CN_HOLIDAY_YEARS, phaseInfo } from '../lib/phase.js'
 
 /** Beijing wall-clock time → epoch ms. */
 const bj = (s) => Date.parse(s + '+08:00')

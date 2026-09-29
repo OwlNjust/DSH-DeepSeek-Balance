@@ -150,11 +150,27 @@ ok('host: /dsbal/* 全部走认证门禁，不存在裸注册（安全回归闸�
   assert(routes.length === 4, `路由数应为 4，实际 ${routes.length}：${routes.join(', ')}`)
 })
 
-ok('host: 时段算法的 phase marker 仍在（test/phase.test.mjs 靠它抽取）', () => {
+ok('host: 算法/客户端/校验都在各自模块里，index.js 只做装配', () => {
   const host = read('lib/index.js')
-  for (const marker of ['// ---- phase:begin', '// ---- phase:end ----']) {
-    assert(host.includes(marker), `缺少 marker「${marker}」`)
+  const modules = {
+    'lib/phase.js': ['phaseInfo'],
+    'lib/window.js': ['windowOf', 'spentFromSnapshots', 'monthRange', 'sumMonths'],
+    'lib/deepseek.js': ['normalizeToken', 'fetchBalance', 'fetchMonthData'],
+    'lib/validate.js': ['parseWindowRequest', 'parseConfigRequest'],
   }
+  for (const [file, names] of Object.entries(modules)) {
+    assert(existsSync(join(ROOT, file)), `${file} 不存在`)
+    const src = read(file)
+    for (const name of names) {
+      assert(new RegExp(`export (async )?function ${name}\\b|export const ${name}\\b`).test(src), `${file} 未导出 ${name}`)
+      assert(host.includes(name), `lib/index.js 未使用 ${name}`)
+    }
+  }
+  // The assembly layer must not re-implement the algorithms it delegates.
+  for (const dup of ['function phaseInfo', 'function windowOf', 'function spentFromSnapshots', 'async function fetchMonthData']) {
+    assert(!host.includes(dup), `lib/index.js 不应再自带 ${dup}（会与子模块分叉）`)
+  }
+  assert(host.split('\n').length < 420, `lib/index.js 应保持为装配层（当前 ${host.split('\n').length} 行）`)
 })
 
 ok('host: 请求校验已抽到 lib/validate.js，index.js 不再重复实现', () => {

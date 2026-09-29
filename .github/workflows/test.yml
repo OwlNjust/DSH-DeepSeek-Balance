@@ -1,8 +1,9 @@
 # CI: syntax check + phase-algorithm unit tests.
 #
-# Runs on GitHub's runners, so it is independent of this machine's network
-# (WSL cannot reach github.com directly — pushes go out from the Windows side;
-# everything after that happens in the cloud).
+# Runs on GitHub's runners, so it is independent of this machine's network.
+# (Pushes used to have to go out from the Windows side because WSL could not
+# reach github.com; since 2026-09-29 a machine-level proxy makes WSL able to
+# push directly. Either way, everything from here on happens in the cloud.)
 #
 # The package has ZERO runtime dependencies, so no `npm install` step is needed:
 # the test only imports node: builtins. Keep it that way and CI stays fast and
@@ -40,5 +41,5 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Syntax check
         run: npm run check
-      - name: Unit tests (phase + holiday calendar + request validation)
+      - name: Unit tests (phase + holidays + request validation + packaging contract)
         run: npm test

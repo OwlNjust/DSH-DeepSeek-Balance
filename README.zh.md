@@ -103,6 +103,8 @@ curl -s http://127.0.0.1:3080/dsbal/state
   **不含中国法定节假日**，价格 ×2）与 🟢 **梁文谷**（空闲：其余时段，**含周末与法定节假日全天**，半价），
   实时倒计时，高峰红色高亮，法定节假日显示 🎉 标识。
   时段依据[官方定价文档](https://api-docs.deepseek.com/zh-cn/quick_start/pricing)。
+- **中英双语** —— 界面文案集中于 `lib/client.js` 的文案表；语言跟随宿主设置 → 浏览器语言，
+  面板内可一键切换；插件卡片标题/描述见 `locale/zh.json`、`locale/en.json`，图标 `icon.svg`。
 - **可拖动定位** —— **右键**按住药丸拖动即可移到任意位置，位置自动记忆；左键只负责点击展开面板。
   药丸上右键不弹浏览器菜单（药丸即拖拽手柄）；展开面板时自动避让屏幕边缘，
   窗口缩放后药丸也会自动夹回可视区域。面板底部提供「重置位置（右下角）」按钮，
@@ -114,17 +116,55 @@ curl -s http://127.0.0.1:3080/dsbal/state
 | --- | --- |
 | API Key / userToken | 小组件 → 配置 |
 | 时间窗口 | 小组件按钮（今天 / 24h / 7天 / 自定义） |
-| 刷新 | 「刷新」按钮（或自动：5 分钟 / 30 秒） |
+| 刷新 | 「刷新」按钮（或自动：按配置的 `pollIntervalMs`，默认 5 分钟；标签页隐藏时暂停） |
+| 语言 | 跟随宿主设置的语言 → 否则浏览器语言；面板标题栏的 `EN/中` 按钮可手动切换（记忆在本机） |
 | 药丸摘要 | 右下角：当前价格时段 + 余额 + 时段消耗 |
 
 ## 架构
 
 ```
-宿主插件 lib/index.js     轮询（fetch）→ ~/.deepseek-balance.json
-                           输出 JSON：/dsbal/state|refresh|config|window
-客户端模块 lib/client.js   window.__ModuleLoader__ 产物
-                           注册 shell.overlay 小组件；fetch() 上述路由
+宿主 lib/index.js      仅装配：config 校验 → 建 store/service → 注册四条已认证路由 → 定时轮询
+  ├─ lib/service.js    操作实现（getState / refresh / setConfig / setWindow / poll）
+  ├─ lib/config.js     可调项 DEFAULTS + 校验（profile 的 config: 覆盖，整体替换语义）
+  ├─ lib/store.js      状态文件：原子写（临时文件 + rename）、串行化、schemaVersion 信封、损坏隔离
+  ├─ lib/deepseek.js   余额/用量 HTTP 客户端（浏览器头 + 15s 超时）与载荷解析
+  ├─ lib/phase.js      时段/法定节假日算法（梁文峰/梁文谷）
+  ├─ lib/window.js     窗口区间、快照估算、按天聚合计费与 Token
+  ├─ lib/validate.js   /dsbal/* 请求校验（含 fromMs 范围、凭据长度与 key 形态）
+  └─ lib/i18n.js       读取宿主语言偏好
+客户端 lib/client.js   window.__ModuleLoader__ 产物：shell.overlay 悬浮小组件 + 文案表（zh/en）
 ```
+
+**认证**：四条 `/dsbal/*` 路由都先过宿主自己的门禁 `ctx.connection.admit(req)`
+（与 `/api` 通道同一套 Host/Origin 信任栅栏 + 浏览器 cookie 认证）。
+未携带会话 cookie 的请求返回 **401**，跨源请求返回 **403**，方法不符返回 **405**，
+非法请求体返回 **400 且不改动任何状态**。写入凭据的接口只对已登录的本机浏览器开放。
+
+## 配置
+
+在 profile 的补丁层按 entry id 覆盖（`config:` 是**整体替换**，未写的字段回落默认值）：
+
+```yaml
+- id: dsh-deepseek-balance
+  config:
+    pollIntervalMs: 900000     # 轮询周期，30s ~ 24h，默认 5 分钟
+    historyDays: 180           # 余额快照保留天数 / 自定义窗口上限，1 ~ 400，默认 90
+    usageTtlMs: 1800000        # 用量接口成功缓存，1min ~ 24h，默认 1 小时
+    usageErrorTtlMs: 600000    # 用量接口失败缓存，1min ~ 24h，默认 10 分钟
+    maxSnapshots: 5000         # 快照条数上限，100 ~ 100000
+    requestTimeoutMs: 15000    # 单次请求超时，1s ~ 120s
+```
+
+后端地址（`balanceUrl` / `usageCostUrl` / `usageAmountUrl`）也可覆盖，必须是 https。
+任何非法值都会**让插件激活失败并打印字段名**，而不是静默用默认值。
+
+## 模型访问（agent tool）
+
+本插件目前**不注册** agent tool。原因是硬约束而非取舍：注册 tool 需要 harness 的
+`defineTool()`（位于 `@deepseek-ai/dsh-tools`），而本插件零依赖、profile 里也解析不到该包；
+手写 `tools.register()` 的裸定义会依赖 harness 内部契约，在没有真实 agent 会话的情况下无法验证。
+因此操作已先收敛到 `lib/service.js`（UI 与将来的 tool 共用一个实现），
+而**写入凭据的 `setConfig()` 永远不会被 model 触达**——这是设计约束，不是待办。
 
 ## 注意事项
 
@@ -132,6 +172,9 @@ curl -s http://127.0.0.1:3080/dsbal/state
   不可用时自动回退估算。数据为**账号整体**统计——平台接口不支持按 API Key 筛选。
 - userToken 会自然过期；用量数据最多滞后 1 小时（内存缓存），点「刷新」立即更新。
 - 密钥明文保存于 `~/.deepseek-balance.json`（0600），请勿泄露。
+- 状态文件带 `schemaVersion` 信封并**原子写入**（临时文件 + rename），写入串行化；
+  若文件损坏或版本高于插件，插件会把它**改名隔离**为 `…​.corrupt-<时间戳>`、
+  从空状态启动，并在面板上显示原因——不会静默丢数据。
 - 法定节假日按**国务院办公厅年度通知**内置（当前收录 **2026 年**）。跨年后需更新插件才能
   识别次年节假日；未收录的年份会标注「节假日数据待更新」并暂按普通周一至周五判定。
 
@@ -140,12 +183,23 @@ curl -s http://127.0.0.1:3080/dsbal/state
 欢迎 Issue / PR（高峰阈值提醒、按模型筛选、多语言等）。
 请保持 `lib/client.js` 的 `window.__ModuleLoader__` 产物格式。
 
-改动时段算法（`lib/index.js` 中 `phase:begin`/`phase:end` 之间）、`/dsbal/*` 请求校验
-或打包声明（`package.json` 的 `dsh.bundle` / 包内 `cordis.patch.yml`）后请跑 `npm test`（共 53 项）：
-`test/phase.test.mjs`（28 项：工作日/周末/法定节假日/跨节日合并/未收录年份回退）、
-`test/routes.test.mjs`（14 项：非法 id／非 JSON／类型错误必须 400 且不改状态）与
-`test/package.test.mjs`（11 项：包名/`dsh.bundle` 组合层只有一行 insert/客户端产物格式与
-`exports.inject`/宿主 `inject` 与测试 marker）。前两者直接从源码抽取对应代码块执行。
+改动任何模块后请跑 `npm test`（**113 项**，全部是零依赖的 Node 内置断言）：
+
+| 套件 | 项数 | 覆盖 |
+| --- | --- | --- |
+| `test/phase.test.mjs` | 28 | 时段算法：工作日/周末/法定节假日/跨节日合并段/未收录年份回退 |
+| `test/window.test.mjs` | 14 | 北京日界、快照估算（充值不计消耗）、跨月/跨年区间、按模型与 Token 汇总 |
+| `test/config.test.mjs` | 6 | 默认值、整体替换语义、未知字段、范围与 https 校验 |
+| `test/store.test.mjs` | 9 | 原子写、串行写者、权限 0600、损坏/未来版本隔离、写失败可诊断 |
+| `test/i18n.test.mjs` | 5 | BCP 47 归一化、settings.describe() 读取与安全退化 |
+| `test/service.test.mjs` | 13 | poll/refresh/setConfig/setWindow/getState（注入假 HTTP，无网络） |
+| `test/routes.test.mjs` | 18 | 请求校验与边界（非法 id/非 JSON/类型错/fromMs 范围/长度/key 形态） |
+| `test/package.test.mjs` | 20 | 包名与导出、组合层只有一行 insert、客户端产物与文案表、认证门禁不可回归 |
+
+CI（`.github/workflows/test.yml`）在 Node 20/24 矩阵上跑 `npm run check` + `npm test`。
+改动**客户端产物格式**（`window.__ModuleLoader__.load` + `exports.inject`）、
+**认证门禁**、**状态文件格式**或**时段算法**时，必须同步更新对应套件；
+时段算法与客户端文案表都有结构性断言兜底（表外中文字面量、zh/en 键一一对应）。
 
 ## License
 

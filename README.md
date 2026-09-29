@@ -126,17 +126,64 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
 | --- | --- |
 | API key / userToken | widget → 配置 |
 | Time window | widget chips (今天 / 24h / 7天 / custom) |
-| Refresh | 刷新 button (or automatic: every 5 min / 30 s) |
+| Refresh | 刷新 button (or automatic, at the configured `pollIntervalMs` — 5 min by default; paused while the tab is hidden) |
+| Language | follows the host's preference, else the browser's; the `EN/中` button in the panel header switches manually (remembered locally) |
 | Pill summary | bottom-right: current price window + balance + period spend |
 
 ## Architecture
 
 ```
-host plugin lib/index.js     poll (fetch) → ~/.deepseek-balance.json
-                             serve JSON: /dsbal/state|refresh|config|window
-client module lib/client.js  window.__ModuleLoader__ artifact
-                             registers the shell.overlay widget; fetch() the routes
+host lib/index.js       assembly only: validate config → build store/service → register four
+                        authenticated routes → poll on a timer
+  ├─ lib/service.js     the operations (getState / refresh / setConfig / setWindow / poll)
+  ├─ lib/config.js      tunables + DEFAULTS validation (a profile `config:` replaces wholesale)
+  ├─ lib/store.js       state file: atomic write (temp file + rename), serialised, schemaVersion
+  │                     envelope, quarantines a corrupt file instead of losing it
+  ├─ lib/deepseek.js    balance/usage HTTP client (browser-ish headers, 15 s timeout) + parsing
+  ├─ lib/phase.js       peak/off-peak phases + the statutory-holiday calendar
+  ├─ lib/window.js      window range, snapshot estimation, daily cost/token aggregation
+  ├─ lib/validate.js    /dsbal/* request validation (fromMs bounds, credential length/shape)
+  └─ lib/i18n.js        reads the host's language preference
+client lib/client.js   window.__ModuleLoader__ artifact: the shell.overlay widget + zh/en copy
 ```
+
+**Authentication**: all four `/dsbal/*` routes pass the host's own gate first —
+`ctx.connection.admit(req)`, the same Host/Origin trust fence and browser-cookie
+authentication the `/api` channel uses. A request without a session cookie gets
+**401**, a cross-site request **403**, a wrong method **405**, and a malformed body
+**400 with no state change**. The credential-writing route is reachable only from the
+authenticated local browser.
+
+## Configuration
+
+Override fields per entry id in the profile's patch layer (`config:` replaces the whole
+object, so unlisted fields fall back to the defaults):
+
+```yaml
+- id: dsh-deepseek-balance
+  config:
+    pollIntervalMs: 900000     # poll cadence, 30s .. 24h, default 5 min
+    historyDays: 180           # snapshot retention / custom-window cap, 1 .. 400, default 90
+    usageTtlMs: 1800000        # successful usage-response cache, 1min .. 24h, default 1 h
+    usageErrorTtlMs: 600000    # failed usage-response cache, 1min .. 24h, default 10 min
+    maxSnapshots: 5000         # snapshot cap, 100 .. 100000
+    requestTimeoutMs: 15000    # per-request timeout, 1s .. 120s
+```
+
+The endpoints (`balanceUrl` / `usageCostUrl` / `usageAmountUrl`) are overridable too and
+must be https. An invalid value **fails activation naming the field** instead of falling
+back silently.
+
+## Model access (agent tool)
+
+This plugin does **not** register an agent tool, and that is a hard constraint rather
+than a preference: registering one needs the harness's `defineTool()`
+(`@deepseek-ai/dsh-tools`), which a zero-dependency package — and this profile — cannot
+resolve, while a hand-rolled raw `tools.register()` definition would ride an internal
+contract that cannot be verified without a live agent session. The operations have
+therefore been collected into `lib/service.js` so the widget and any future tool share
+one implementation, and `setConfig()` — the only way credentials are written — is never
+exposed to a model by construction.
 
 ## Notes
 
@@ -147,6 +194,10 @@ client module lib/client.js  window.__ModuleLoader__ artifact
 - A `userToken` expires naturally; usage may lag by up to 1 hour (memory cache);
   the 刷新 button clears it.
 - Keys are stored unencrypted in `~/.deepseek-balance.json` (0600) — never share it.
+- The state file carries a `schemaVersion` envelope and is written **atomically**
+  (temp file + rename) with serialised writers. A corrupt or future-versioned file is
+  **renamed aside** to `….corrupt-<timestamp>`, the plugin starts from empty state, and
+  the panel shows why — nothing is silently discarded.
 - Statutory holidays come from the **annual State Council notice** and are currently
   bundled for **2026**. After the new year the plugin must be updated to know the next
   year's holidays; an unlisted year is flagged「节假日数据待更新」and judged as plain
@@ -154,18 +205,27 @@ client module lib/client.js  window.__ModuleLoader__ artifact
 
 ## Contributing
 
-Issues and PRs welcome (peak-hour threshold alerts, per-model filtering, locales…).
+Issues and PRs welcome (peak-hour threshold alerts, per-model filtering, more locales…).
 Keep `lib/client.js` in the `window.__ModuleLoader__` artifact format.
 
-After touching the phase algorithm (the `phase:begin`/`phase:end` block in `lib/index.js`),
-the `/dsbal/*` request validation (`requests:begin`/`requests:end`) or the packaging
-declaration (`dsh.bundle` in `package.json` / the shipped `cordis.patch.yml`) run `npm test`
-(53 cases): `test/phase.test.mjs` (28 cases: weekdays / weekends / statutory holidays / merged
-holiday runs / unlisted-year fallback), `test/routes.test.mjs` (14 cases: an invalid id, a
-non-JSON body or a wrong field type must answer 400 and change no state) and
-`test/package.test.mjs` (11 cases: package name, a single `insert` row in the bundle layer,
-the client artifact format plus `exports.inject`, the host `inject` and the test markers).
-The first two extract the very code they test from `lib/index.js`.
+Run `npm test` (**113 cases**, zero-dependency Node assertions) after touching any module:
+
+| Suite | Cases | Covers |
+| --- | --- | --- |
+| `test/phase.test.mjs` | 28 | weekday/weekend/holiday phases, merged holiday runs, unlisted-year fallback |
+| `test/window.test.mjs` | 14 | Beijing midnight boundaries, snapshot estimate (top-ups excluded), multi-month/year ranges, per-model and token totals |
+| `test/config.test.mjs` | 6 | defaults, wholesale-replacement semantics, unknown fields, range and https validation |
+| `test/store.test.mjs` | 9 | atomic write, serialised writers, mode 0600, corrupt/foreign-file quarantine, diagnosable save failure |
+| `test/i18n.test.mjs` | 5 | BCP 47 normalisation, `settings.describe()` read, safe degradation |
+| `test/service.test.mjs` | 13 | poll/refresh/setConfig/setWindow/getState with an injected HTTP layer (no network) |
+| `test/routes.test.mjs` | 18 | validation bounds: bad id, non-JSON, wrong type, `fromMs` range, length, key shape |
+| `test/package.test.mjs` | 20 | name/exports, a single `insert` row, client artifact and copy table, non-regression of the auth gate |
+
+CI (`.github/workflows/test.yml`) runs `npm run check` + `npm test` on a Node 20/24 matrix.
+Changing the **client artifact format** (`window.__ModuleLoader__.load` + `exports.inject`),
+the **auth gate**, the **state-file format** or the **phase algorithm** means updating the
+matching suite; the phase algorithm and the copy table both have structural guards
+(no Chinese literal outside the table, one-to-one zh/en keys).
 
 ## License
 

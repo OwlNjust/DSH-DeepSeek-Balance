@@ -210,34 +210,45 @@ ok('host: /dsbal/* 全部走认证门禁，不存在裸注册（安全回归闸�
   assert(/\.admit\(/.test(host), 'host 必须调用 connection.admit()')
   const registers = [...host.matchAll(/webServer\.register\(/g)]
   assert(registers.length === 1, `webServer.register 只应出现在 registerRoute 内一次，实际 ${registers.length} 次（新增路由必须走 registerRoute）`)
-  const routes = [...host.matchAll(/registerRoute\('([A-Z]+)',\s*'([^']+)'/g)].map((m) => `${m[1]} ${m[2]}`)
-  for (const route of ['GET /dsbal/state', 'POST /dsbal/refresh', 'POST /dsbal/config', 'POST /dsbal/window']) {
-    assert(routes.includes(route), `缺少路由「${route}」，实际：${routes.join(', ')}`)
+  // Route table: every path must be declared once, with its method, through the
+  // readRoute/bodyRoute helpers (which both go through registerRoute -> guard).
+  for (const route of ['/dsbal/state', '/dsbal/refresh', '/dsbal/config', '/dsbal/window']) {
+    const hits = [...host.matchAll(new RegExp(`'${route.replace('/', '\\/')}'`, 'g'))]
+    assert(hits.length === 1, `路由 ${route} 应恰好声明一次，实际 ${hits.length} 次`)
   }
-  assert(routes.length === 4, `路由数应为 4，实际 ${routes.length}：${routes.join(', ')}`)
+  const table = host.slice(host.indexOf('const disposers'), host.indexOf('ctx.effect('))
+  for (const call of ["readRoute('GET', '/dsbal/state'", "readRoute('POST', '/dsbal/refresh'", "bodyRoute('POST', '/dsbal/config'", "bodyRoute('POST', '/dsbal/window'"]) {
+    assert(table.includes(call), `路由表缺少 ${call}）`)
+  }
+  assert((table.match(/dsbal\//g) || []).length === 4, `路由表应恰好 4 条 /dsbal 路由，实际 ${(table.match(/dsbal\//g) || []).length} 条`)
 })
 
 ok('host: 算法/客户端/校验都在各自模块里，index.js 只做装配', () => {
   const host = read('lib/index.js')
+  const service = read('lib/service.js')
   const modules = {
     'lib/phase.js': ['phaseInfo'],
     'lib/window.js': ['windowOf', 'spentFromSnapshots', 'monthRange', 'sumMonths'],
     'lib/deepseek.js': ['normalizeToken', 'fetchBalance', 'fetchMonthData'],
     'lib/validate.js': ['parseWindowRequest', 'parseConfigRequest'],
+    'lib/service.js': ['createService', 'normalizeState'],
   }
   for (const [file, names] of Object.entries(modules)) {
     assert(existsSync(join(ROOT, file)), `${file} 不存在`)
     const src = read(file)
     for (const name of names) {
       assert(new RegExp(`export (async )?function ${name}\\b|export const ${name}\\b`).test(src), `${file} 未导出 ${name}`)
-      assert(host.includes(name), `lib/index.js 未使用 ${name}`)
+      assert(host.includes(name) || service.includes(name), `${name} 没有被 index.js/service.js 使用`)
     }
   }
-  // The assembly layer must not re-implement the algorithms it delegates.
-  for (const dup of ['function phaseInfo', 'function windowOf', 'function spentFromSnapshots', 'async function fetchMonthData']) {
-    assert(!host.includes(dup), `lib/index.js 不应再自带 ${dup}（会与子模块分叉）`)
+  // Neither the assembly layer nor the service may re-implement the algorithms.
+  for (const src of [host, service]) {
+    for (const dup of ['function phaseInfo', 'function windowOf', 'function spentFromSnapshots', 'async function fetchMonthData', 'function parseWindowRequest']) {
+      assert(!src.includes(dup), `不应再自带 ${dup}（会与子模块分叉）`)
+    }
   }
-  assert(host.split('\n').length < 420, `lib/index.js 应保持为装配层（当前 ${host.split('\n').length} 行）`)
+  assert(host.split('\n').length < 250, `lib/index.js 应保持为装配层（当前 ${host.split('\n').length} 行）`)
+  assert(/from '\.\/service\.js'/.test(host), 'lib/index.js 应通过 ./service.js 调用操作')
 })
 
 ok('host: 请求校验已抽到 lib/validate.js，index.js 不再重复实现', () => {

@@ -80,18 +80,24 @@ await okAsync('store: 原子写不留临时文件', async () => {
   assert(onDisk.apiKey === 'sk-b', `串行写应以最后一次为准，实际 ${onDisk.apiKey}`)
 })
 
-await okAsync('store: 损坏 JSON → 报告原因、返回空状态、且不覆盖原文件', async () => {
-  const file = join(await dir(), 'state.json')
+await okAsync('store: 损坏 JSON → 报告原因、原文件隔离保留、从空状态开始', async () => {
+  const d = await dir()
+  const file = join(d, 'state.json')
   await writeFile(file, '{"apiKey":"sk-broken"', { mode: 0o600 })
   const store = createStore(file, normalize)
   const state = await store.load()
   assert(state.apiKey === '', '应从空状态开始')
   assert(typeof store.loadError === 'string' && store.loadError.includes('合法 JSON'), `loadError 应说明原因，实际 ${store.loadError}`)
-  const untouched = await readFile(file, 'utf8')
-  assert(untouched === '{"apiKey":"sk-broken"', 'load 不应改写损坏文件（等用户处置）')
+  const backups = (await readdir(d)).filter((f) => f.includes('.corrupt-'))
+  assert(backups.length === 1, `应恰好留下一个隔离备份，实际 ${backups.length}`)
+  assert(store.loadError.includes(backups[0]), 'loadError 应告诉用户备份文件名')
+  assert((await readFile(join(d, backups[0]), 'utf8')) === '{"apiKey":"sk-broken"', '备份内容必须逐字节保留')
+  // 之后正常保存不再毁掉用户数据（备份仍在）。
+  await store.save({ ...emptyState(), apiKey: 'sk-new' })
+  assert((await readFile(join(d, backups[0]), 'utf8')) === '{"apiKey":"sk-broken"', '后续保存不得影响备份')
 })
 
-await okAsync('store: 非对象内容 → 报告并回退空状态', async () => {
+await okAsync('store: 非对象内容 → 隔离并回退空状态', async () => {
   const file = join(await dir(), 'state.json')
   await writeFile(file, '[1,2,3]', { mode: 0o600 })
   const store = createStore(file, normalize)
@@ -106,6 +112,7 @@ await okAsync('store: 未来版本文件 → 拒绝解读并说明版本', async
   const state = await store.load()
   assert(state.apiKey === '', '不应读取未来版本')
   assert(store.loadError.includes(String(SCHEMA_VERSION + 5)), `loadError 应含版本号，实际 ${store.loadError}`)
+  assert(store.loadError.includes('.corrupt-'), '未来版本文件也应隔离保留，而不是被覆盖')
 })
 
 await okAsync('store: 写入失败（父目录不可写）→ saveError 有内容且不抛异常', async () => {

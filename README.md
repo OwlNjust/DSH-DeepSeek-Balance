@@ -244,6 +244,10 @@ the **auth gate**, the **state-file format**, the **tool definition** or the **p
 algorithm** means updating the matching suite; the phase algorithm and the copy table both have structural guards
 (no Chinese literal outside the table, one-to-one zh/en keys).
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) — current **plugin** release **0.2.0** (not to be confused with the harness version mentioned above).
+
 ## License
 
 [MIT](LICENSE)

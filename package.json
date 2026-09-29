@@ -1,6 +1,6 @@
 {
   "name": "dsh-deepseek-balance",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DeepSeek balance monitor for DeepSeek Harness: real-time topped-up balance, period consumption (per model) and token usage (cache-hit input / cache-miss input / output), plus peak/off-peak price reminder (Liang Wenfeng / Liang Wengu).",
   "license": "MIT",
   "type": "module",
@@ -22,6 +22,7 @@
     "locale/*.json",
     "icon.svg",
     "cordis.patch.yml",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE"
   ],

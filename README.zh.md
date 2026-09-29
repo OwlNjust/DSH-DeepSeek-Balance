@@ -215,6 +215,10 @@ CI（`.github/workflows/test.yml`）在 Node 20/24 矩阵上跑 `npm run check` 
 **认证门禁**、**状态文件格式**、**工具定义**或**时段算法**时，必须同步更新对应套件；
 时段算法与客户端文案表都有结构性断言兜底（表外中文字面量、zh/en 键一一对应）。
 
+## 变更记录
+
+见 [CHANGELOG.md](CHANGELOG.md)（当前**插件**版本 **0.2.0**，与上文提到的 harness 版本无关）。
+
 ## License
 
 [MIT](LICENSE)

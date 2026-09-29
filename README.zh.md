@@ -2,6 +2,8 @@
 
 [![test](https://github.com/OwlNjust/DSH-DeepSeek-Balance/actions/workflows/test.yml/badge.svg)](https://github.com/OwlNjust/DSH-DeepSeek-Balance/actions/workflows/test.yml)
 
+主题：[`dsh-plugin`](https://github.com/topics/dsh-plugin) · [`deepseek-harness`](https://github.com/topics/deepseek-harness) · [`deepseek`](https://github.com/topics/deepseek)
+
 > DeepSeek Harness 的 DeepSeek 余额与用量实时监控插件 —— 右下角悬浮小组件，
 > 附高峰/空闲时段（梁文峰 / 梁文谷）价格提醒。
 >

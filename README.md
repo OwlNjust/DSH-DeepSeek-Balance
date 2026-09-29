@@ -75,8 +75,19 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
 
 - Do **not** run `npm publish`; installation is git/checkout based.
 - **Do not mix the routes**: route A already inserts the plugin row from the bundle layer, so
-  also appending the same `insert` row by hand inserts the plugin id twice. When switching,
-  make sure only `dsh.profile.bundles` or the profile's `cordis.patch.yml` carries it.
+  also appending the same `insert` row by hand inserts the plugin id twice (cordis collapses
+  rows that share an id into one, so this **fails silently** — it only leaves a duplicate row
+  in the composed tree, which is easy to misread later). When switching, make sure only
+  `dsh.profile.bundles` or the profile's `cordis.patch.yml` carries it. One-line self-check —
+  the result must be `1`:
+
+  ```sh
+  dsh --profile web --dump-config | grep -c 'id: dsh-deepseek-balance'
+  ```
+
+  If it prints `2`, delete the hand-written block from `cordis.patch.yml` (keep the package in
+  `dsh.profile.bundles`, the bundle layer is maintained by the plugin manager) and restart
+  `dsh web`. To switch the other way, remove the package from `dsh.profile.bundles` first.
 - Configuration and balance history are stored in `~/.deepseek-balance.json`
   (mode 0600) — never echo its contents.
 - Uninstall: remove the row from `cordis.patch.yml`, delete
@@ -85,7 +96,8 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
 ## Requirements
 
 - A DeepSeek Harness deployment with the **web profile** (`dsh web`); Node.js ≥ 20
-  (verified against deepseek-harness **v0.1.2-rc.1**).
+  (adapted and verified on **v0.1.2-rc.1**, re-checked up to **v0.2.0-rc.2** — it has
+  worked unchanged across all four versions).
 - A DeepSeek **API key** (platform.deepseek.com → API keys).
 - Optional: platform **userToken** (platform.deepseek.com → DevTools → Application →
   Local Storage) for exact cost/token stats. Without it, consumption falls back
@@ -145,12 +157,15 @@ client module lib/client.js  window.__ModuleLoader__ artifact
 Issues and PRs welcome (peak-hour threshold alerts, per-model filtering, locales…).
 Keep `lib/client.js` in the `window.__ModuleLoader__` artifact format.
 
-After touching the phase algorithm (the `phase:begin`/`phase:end` block in `lib/index.js`)
-or the `/dsbal/*` request validation (`requests:begin`/`requests:end`) run `npm test`:
-`test/phase.test.mjs` (28 cases: weekdays / weekends / statutory holidays / merged holiday
-runs / unlisted-year fallback) and `test/routes.test.mjs` (14 cases: an invalid id, a
-non-JSON body or a wrong field type must answer 400 and change no state). Both extract the
-very code they test from `lib/index.js`.
+After touching the phase algorithm (the `phase:begin`/`phase:end` block in `lib/index.js`),
+the `/dsbal/*` request validation (`requests:begin`/`requests:end`) or the packaging
+declaration (`dsh.bundle` in `package.json` / the shipped `cordis.patch.yml`) run `npm test`
+(53 cases): `test/phase.test.mjs` (28 cases: weekdays / weekends / statutory holidays / merged
+holiday runs / unlisted-year fallback), `test/routes.test.mjs` (14 cases: an invalid id, a
+non-JSON body or a wrong field type must answer 400 and change no state) and
+`test/package.test.mjs` (11 cases: package name, a single `insert` row in the bundle layer,
+the client artifact format plus `exports.inject`, the host `inject` and the test markers).
+The first two extract the very code they test from `lib/index.js`.
 
 ## License
 

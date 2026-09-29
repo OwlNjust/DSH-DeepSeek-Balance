@@ -71,7 +71,17 @@ curl -s http://127.0.0.1:3080/dsbal/state
 
 - **不要**执行 `npm publish`；安装基于 git 仓库或本地克隆。
 - **两条路线别混用**：路线 A 已由组合层插入插件行，若再手工追加同一 `insert` 行，插件 id 会被
-  插入两次。切换路线时先确认 `dsh.profile.bundles` 与 profile 的 `cordis.patch.yml` 只有一边生效。
+  插入两次（cordis 按 id 折叠成一份，所以**不会报错**，只是组合树里多出一行、日后极易误判）。
+  切换路线时先确认 `dsh.profile.bundles` 与 profile 的 `cordis.patch.yml` 只有一边生效；
+  一条命令自检，结果必须是 `1`：
+
+  ```sh
+  dsh --profile web --dump-config | grep -c 'id: dsh-deepseek-balance'
+  ```
+
+  若输出 `2`：删掉 `cordis.patch.yml` 里手写的那段（保留 `dsh.profile.bundles` 里的包，
+  组合层交给插件管理器维护），重启 `dsh web` 生效。反向切换（改回手写行）则先从
+  `dsh.profile.bundles` 移除本包。
 - 配置与余额历史保存在 `~/.deepseek-balance.json`（0600），**切勿回显其内容**。
 - 卸载：删除 `cordis.patch.yml` 中的行、删除
   `~/.dsh/profiles/web/node_modules/dsh-deepseek-balance`，重启 `dsh web`。
@@ -79,7 +89,7 @@ curl -s http://127.0.0.1:3080/dsbal/state
 ## 前置条件
 
 - deepseek-harness 的 **web profile**（`dsh web`）；Node.js ≥ 20
-  （本插件已在 deepseek-harness **v0.1.2-rc.1** 上适配验证）。
+  （本插件在 **v0.1.2-rc.1** 上适配验证，并已复检至 **v0.2.0-rc.2**，四个版本零改动可用）。
 - DeepSeek **API Key**（platform.deepseek.com → API keys）。
 - 可选：平台 **userToken**（platform.deepseek.com → F12 → Application → Local Storage），
   用于精确统计消耗/Token；未配置时自动回退为余额快照估算。
@@ -130,9 +140,12 @@ curl -s http://127.0.0.1:3080/dsbal/state
 欢迎 Issue / PR（高峰阈值提醒、按模型筛选、多语言等）。
 请保持 `lib/client.js` 的 `window.__ModuleLoader__` 产物格式。
 
-改动时段算法（`lib/index.js` 中 `phase:begin`/`phase:end` 之间）或 `/dsbal/*` 请求校验后请跑 `npm test`：
-`test/phase.test.mjs`（28 项：工作日/周末/法定节假日/跨节日合并/未收录年份回退）与
-`test/routes.test.mjs`（14 项：非法 id／非 JSON／类型错误必须 400 且不改状态）均直接从源码抽取对应代码块执行。
+改动时段算法（`lib/index.js` 中 `phase:begin`/`phase:end` 之间）、`/dsbal/*` 请求校验
+或打包声明（`package.json` 的 `dsh.bundle` / 包内 `cordis.patch.yml`）后请跑 `npm test`（共 53 项）：
+`test/phase.test.mjs`（28 项：工作日/周末/法定节假日/跨节日合并/未收录年份回退）、
+`test/routes.test.mjs`（14 项：非法 id／非 JSON／类型错误必须 400 且不改状态）与
+`test/package.test.mjs`（11 项：包名/`dsh.bundle` 组合层只有一行 insert/客户端产物格式与
+`exports.inject`/宿主 `inject` 与测试 marker）。前两者直接从源码抽取对应代码块执行。
 
 ## License
 

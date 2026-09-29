@@ -259,6 +259,20 @@ ok('host: 请求校验已抽到 lib/validate.js，index.js 不再重复实现', 
   assert(!host.includes('function parseConfigRequest'), 'lib/index.js 不应再自带 parseConfigRequest')
 })
 
+ok('tool: 只读 agent tool 经可选注入注册，且契约不符只降级不致命', () => {
+  assert(existsSync(join(ROOT, 'lib/tool.js')), 'lib/tool.js 不存在')
+  const host = read('lib/index.js')
+  const tool = read('lib/tool.js')
+  assert(/ctx\.inject\(\['tools'\]/.test(host), "tool 必须经 ctx.inject(['tools']) 可选注入（缺失 profile 仍要能激活）")
+  assert(/try\s*\{[\s\S]{0,400}tools\.register\(/.test(host), 'register 必须包在 try/catch 里：契约变化只能丢掉工具，不能拖垮插件')
+  assert(host.includes('createBalanceTool'), 'index.js 应使用 lib/tool.js 的工厂')
+  // Zero dependencies, and no credential surface: the tool may only read state.
+  const requires = [...tool.matchAll(/from '([^']+)'/g)].map((m) => m[1])
+  assert(requires.every((r) => r.startsWith('./') || r.startsWith('node:')), `lib/tool.js 不得依赖外部包：${requires.join(', ')}`)
+  assert(!/service\.(setConfig|setWindow)\s*\(/.test(tool), 'tool 不得调用任何写操作（凭据写入只属于已认证的 UI）')
+  assert(/getState/.test(tool), 'tool 应只通过 service.getState 读取')
+})
+
 ok('host: 客户端半边只依赖 react（不引入额外外部模块）', () => {
   const client = read('lib/client.js')
   const requires = [...client.matchAll(/require\(\s*'([^']+)'\s*\)/g)].map((m) => m[1])

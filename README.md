@@ -174,16 +174,32 @@ The endpoints (`balanceUrl` / `usageCostUrl` / `usageAmountUrl`) are overridable
 must be https. An invalid value **fails activation naming the field** instead of falling
 back silently.
 
-## Model access (agent tool)
+## Model access (read-only agent tool)
 
-This plugin does **not** register an agent tool, and that is a hard constraint rather
-than a preference: registering one needs the harness's `defineTool()`
-(`@deepseek-ai/dsh-tools`), which a zero-dependency package — and this profile — cannot
-resolve, while a hand-rolled raw `tools.register()` definition would ride an internal
-contract that cannot be verified without a live agent session. The operations have
-therefore been collected into `lib/service.js` so the widget and any future tool share
-one implementation, and `setConfig()` — the only way credentials are written — is never
-exposed to a model by construction.
+The plugin registers one read-only tool through an optional injection, so a profile
+without a tool runtime still activates the widget:
+
+| Tool | Parameters | Returns |
+| --- | --- | --- |
+| `deepseek_balance` | `window` (`today`\|`24h`\|`7d`\|`custom`, optional), `fromMs` (epoch ms, only with `custom`) | current price phase, balance, the period's spend and token counters, configuration state and the last error |
+
+It is **read-only by construction**: the tool can only reach `service.getState({ window })`,
+which projects a window without persisting it — asking for `7d` does not change the
+widget's selection, and the credential-writing `setConfig()` is not reachable from it
+at all. Tool output is English (it is a model interface, not UI copy) while the panel
+stays bilingual.
+
+`defineTool()` lives in `@deepseek-ai/dsh-tools`, which a zero-dependency package — and
+this profile — cannot resolve, so the definition is hand-built from what a raw
+registration is consumed for (`name`, `description`, a full JSON-Schema `parameters`,
+`output.schema`/`output.render`, `execute`). Registration runs inside a try/catch with an
+activation self-check: if the definition no longer satisfies the runtime (registration
+throws) or no longer reaches the model-facing projection (`tools.schemas()` omits it), the
+tool withdraws itself and logs why — it can never break the widget or prompt assembly.
+Verified on an isolated instance: `read-only agent tool deepseek_balance ready
+(visible=true, projected=true)`. A live model turn invoking it is the one step that needs
+an agent session (and therefore a provider credential), so it is not covered by the
+automated checks.
 
 ## Notes
 
@@ -208,7 +224,7 @@ exposed to a model by construction.
 Issues and PRs welcome (peak-hour threshold alerts, per-model filtering, more locales…).
 Keep `lib/client.js` in the `window.__ModuleLoader__` artifact format.
 
-Run `npm test` (**113 cases**, zero-dependency Node assertions) after touching any module:
+Run `npm test` (**123 cases**, zero-dependency Node assertions) after touching any module:
 
 | Suite | Cases | Covers |
 | --- | --- | --- |
@@ -218,13 +234,14 @@ Run `npm test` (**113 cases**, zero-dependency Node assertions) after touching a
 | `test/store.test.mjs` | 9 | atomic write, serialised writers, mode 0600, corrupt/foreign-file quarantine, diagnosable save failure |
 | `test/i18n.test.mjs` | 5 | BCP 47 normalisation, `settings.describe()` read, safe degradation |
 | `test/service.test.mjs` | 13 | poll/refresh/setConfig/setWindow/getState with an injected HTTP layer (no network) |
+| `test/tool.test.mjs` | 9 | tool definition shape, read-only guarantee (no write call, no key fragment), schema-valid output, argument bounds, English render |
 | `test/routes.test.mjs` | 18 | validation bounds: bad id, non-JSON, wrong type, `fromMs` range, length, key shape |
-| `test/package.test.mjs` | 20 | name/exports, a single `insert` row, client artifact and copy table, non-regression of the auth gate |
+| `test/package.test.mjs` | 21 | name/exports, a single `insert` row, client artifact and copy table, non-regression of the auth gate |
 
 CI (`.github/workflows/test.yml`) runs `npm run check` + `npm test` on a Node 20/24 matrix.
 Changing the **client artifact format** (`window.__ModuleLoader__.load` + `exports.inject`),
-the **auth gate**, the **state-file format** or the **phase algorithm** means updating the
-matching suite; the phase algorithm and the copy table both have structural guards
+the **auth gate**, the **state-file format**, the **tool definition** or the **phase
+algorithm** means updating the matching suite; the phase algorithm and the copy table both have structural guards
 (no Chinese literal outside the table, one-to-one zh/en keys).
 
 ## License

@@ -158,13 +158,26 @@ curl -s http://127.0.0.1:3080/dsbal/state
 后端地址（`balanceUrl` / `usageCostUrl` / `usageAmountUrl`）也可覆盖，必须是 https。
 任何非法值都会**让插件激活失败并打印字段名**，而不是静默用默认值。
 
-## 模型访问（agent tool）
+## 模型访问（只读 agent tool）
 
-本插件目前**不注册** agent tool。原因是硬约束而非取舍：注册 tool 需要 harness 的
-`defineTool()`（位于 `@deepseek-ai/dsh-tools`），而本插件零依赖、profile 里也解析不到该包；
-手写 `tools.register()` 的裸定义会依赖 harness 内部契约，在没有真实 agent 会话的情况下无法验证。
-因此操作已先收敛到 `lib/service.js`（UI 与将来的 tool 共用一个实现），
-而**写入凭据的 `setConfig()` 永远不会被 model 触达**——这是设计约束，不是待办。
+插件通过**可选注入**注册一个只读工具（没有 tool 运行时的 profile 仍能正常激活小组件）：
+
+| 工具 | 参数 | 返回 |
+| --- | --- | --- |
+| `deepseek_balance` | `window`（`today`/`24h`/`7d`/`custom`，可选）、`fromMs`（毫秒时间戳，仅 `custom` 用） | 当前价格时段、余额、该时段消耗与 Token 三类计数、配置状态、最近一次错误 |
+
+**只读是结构保证**：工具只能触达 `service.getState({ window })`——它按参数**投影**一个窗口，
+不落盘、不改动界面当前选择；写入凭据的 `setConfig()` 从工具里根本不可达。
+工具输出为英文（面向模型，不是 UI 文案），面板保持中英双语。
+
+`defineTool()` 位于 `@deepseek-ai/dsh-tools`，零依赖插件（以及本 profile）解析不到，
+因此该定义是**按裸注册真正被消费的字段**手写的（`name`/`description`/完整 JSON Schema 的
+`parameters`/`output.schema`+`output.render`/`execute`，参数校验在 `execute` 内自行完成）。
+注册包在 try/catch 里并带**启动自检**：若定义不再满足运行时（注册抛错），或不再进入
+模型侧 schema 投影（`tools.schemas()` 里没有它），工具会自我撤下并打印原因——
+它永远不会拖垮小组件或系统提示的组装。已在隔离实例实测：
+`read-only agent tool deepseek_balance ready (visible=true, projected=true)`。
+**唯一未覆盖的一步**是"真实模型回合实际调用它"（需要带凭据的 agent 会话），故不在自动化检查内。
 
 ## 注意事项
 
@@ -183,7 +196,7 @@ curl -s http://127.0.0.1:3080/dsbal/state
 欢迎 Issue / PR（高峰阈值提醒、按模型筛选、多语言等）。
 请保持 `lib/client.js` 的 `window.__ModuleLoader__` 产物格式。
 
-改动任何模块后请跑 `npm test`（**113 项**，全部是零依赖的 Node 内置断言）：
+改动任何模块后请跑 `npm test`（**123 项**，全部是零依赖的 Node 内置断言）：
 
 | 套件 | 项数 | 覆盖 |
 | --- | --- | --- |
@@ -193,12 +206,13 @@ curl -s http://127.0.0.1:3080/dsbal/state
 | `test/store.test.mjs` | 9 | 原子写、串行写者、权限 0600、损坏/未来版本隔离、写失败可诊断 |
 | `test/i18n.test.mjs` | 5 | BCP 47 归一化、settings.describe() 读取与安全退化 |
 | `test/service.test.mjs` | 13 | poll/refresh/setConfig/setWindow/getState（注入假 HTTP，无网络） |
+| `test/tool.test.mjs` | 9 | 工具定义形状、只读保证（无写调用、不含 key 片段）、结果满足自身 schema、参数边界、英文渲染 |
 | `test/routes.test.mjs` | 18 | 请求校验与边界（非法 id/非 JSON/类型错/fromMs 范围/长度/key 形态） |
-| `test/package.test.mjs` | 20 | 包名与导出、组合层只有一行 insert、客户端产物与文案表、认证门禁不可回归 |
+| `test/package.test.mjs` | 21 | 包名与导出、组合层只有一行 insert、客户端产物与文案表、认证门禁不可回归 |
 
 CI（`.github/workflows/test.yml`）在 Node 20/24 矩阵上跑 `npm run check` + `npm test`。
 改动**客户端产物格式**（`window.__ModuleLoader__.load` + `exports.inject`）、
-**认证门禁**、**状态文件格式**或**时段算法**时，必须同步更新对应套件；
+**认证门禁**、**状态文件格式**、**工具定义**或**时段算法**时，必须同步更新对应套件；
 时段算法与客户端文案表都有结构性断言兜底（表外中文字面量、zh/en 键一一对应）。
 
 ## License

@@ -14,17 +14,36 @@ to your agent — it knows how to install this plugin. Manual steps are below.
 
 ## Installation (agent-friendly, no npm needed)
 
-This package is installed **from a local checkout** — it has zero runtime
-dependencies and is never published to npm. An agent (or human) can follow
-these exact steps:
+This package has **zero runtime dependencies and is never published to npm**. There are two
+routes — **pick exactly one per profile**; using both inserts the plugin id twice (see
+"Agent notes").
+
+### Route A (recommended): install it as a profile *bundle* (deepseek-harness ≥ 0.2.0)
+
+The package declares `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`, so the harness
+plugin manager can install and activate it as a profile layer — **no file editing at all**:
+
+- **Desktop app**: menu bar → “Manage plugins” → enter
+  `https://github.com/OwlNjust/DSH-DeepSeek-Balance`
+- **CLI**:
+
+  ```sh
+  dsh plugin --profile <profile> add https://github.com/OwlNjust/DSH-DeepSeek-Balance
+  ```
+
+The manager adds the package to the profile's `dsh.profile.bundles`, and the `cordis.patch.yml`
+shipped inside the package (it carries the `insert` row that activates the plugin) is applied as
+a bundle layer. After a reload/restart the bottom-right widget appears.
+
+### Route B: local checkout + the profile's patch layer (offline / source debugging)
 
 ```sh
-# 1. Clone or copy the repository into the profile's reach (any path works)
+# 1. Clone or copy the repository anywhere
 git clone https://github.com/OwlNjust/DSH-DeepSeek-Balance.git /tmp/dsh-deepseek-balance
 
 # 2. Install it into the web profile (file: = snapshot; link: = live symlink)
 cd ~/.dsh/profiles/web
-dsh plugin --profile web add file:/tmp/dsh-deepseek-balance
+dsh plugin --profile web add link:/tmp/dsh-deepseek-balance
 ```
 
 3. Append this block to `~/.dsh/profiles/web/cordis.patch.yml` (the profile's
@@ -54,7 +73,10 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
 
 ### Agent notes
 
-- Do **not** run `npm publish`; installation is checkout-copy based.
+- Do **not** run `npm publish`; installation is git/checkout based.
+- **Do not mix the routes**: route A already inserts the plugin row from the bundle layer, so
+  also appending the same `insert` row by hand inserts the plugin id twice. When switching,
+  make sure only `dsh.profile.bundles` or the profile's `cordis.patch.yml` carries it.
 - Configuration and balance history are stored in `~/.deepseek-balance.json`
   (mode 0600) — never echo its contents.
 - Uninstall: remove the row from `cordis.patch.yml`, delete

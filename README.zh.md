@@ -14,15 +14,34 @@
 
 ## 安装（面向 agent，无需 npm）
 
-本包从**本地克隆**安装——零运行时依赖，**不发布 npm**。agent（或人工）按以下步骤执行即可：
+本包**零运行时依赖、不发布 npm**，提供两条安装路线——**同一 profile 只能选一条**：
+两条都用会让插件 id 被插入两次（见「agent 注意事项」）。
+
+### 路线 A（推荐）：作为「组合包」安装（deepseek-harness ≥ 0.2.0）
+
+本包声明了 `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`，所以 harness 的插件管理器
+可以直接把它当作组合包（profile 层）安装并自动激活——**无需手改任何文件**：
+
+- **桌面端**：菜单栏 →「管理插件 / Manage plugins」→ 填入
+  `https://github.com/OwlNjust/DSH-DeepSeek-Balance`
+- **命令行**：
+
+  ```sh
+  dsh plugin --profile <profile> add https://github.com/OwlNjust/DSH-DeepSeek-Balance
+  ```
+
+管理器会把包加入 profile 的 `dsh.profile.bundles`，包内的 `cordis.patch.yml`（含激活插件的
+`insert` 行）随之作为组合层生效。重载/重启 profile 后右下角即出现小组件。
+
+### 路线 B：本地克隆 + 用户补丁层（离线 / 改源码调试用）
 
 ```sh
 # 1. 克隆/复制仓库到任意可访问路径
 git clone https://github.com/OwlNjust/DSH-DeepSeek-Balance.git /tmp/dsh-deepseek-balance
 
-# 2. 安装到 web profile（file: = 快照；link: = 源码符号链接）
+# 2. 安装到 web profile（file: = 快照；link: = 源码符号链接，改代码即生效）
 cd ~/.dsh/profiles/web
-dsh plugin --profile web add file:/tmp/dsh-deepseek-balance
+dsh plugin --profile web add link:/tmp/dsh-deepseek-balance
 ```
 
 3. 把下面这段**追加**到 `~/.dsh/profiles/web/cordis.patch.yml`（profile 的用户补丁层）：
@@ -50,7 +69,9 @@ curl -s http://127.0.0.1:3080/dsbal/state
 
 ### agent 注意事项
 
-- **不要**执行 `npm publish`；安装基于本地克隆。
+- **不要**执行 `npm publish`；安装基于 git 仓库或本地克隆。
+- **两条路线别混用**：路线 A 已由组合层插入插件行，若再手工追加同一 `insert` 行，插件 id 会被
+  插入两次。切换路线时先确认 `dsh.profile.bundles` 与 profile 的 `cordis.patch.yml` 只有一边生效。
 - 配置与余额历史保存在 `~/.deepseek-balance.json`（0600），**切勿回显其内容**。
 - 卸载：删除 `cordis.patch.yml` 中的行、删除
   `~/.dsh/profiles/web/node_modules/dsh-deepseek-balance`，重启 `dsh web`。

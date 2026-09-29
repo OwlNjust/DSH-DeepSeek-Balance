@@ -1,10 +1,18 @@
 # dsh-deepseek-balance composition rows.
 #
-# Installation (deepseek-harness web profile):
-#   cd ~/.dsh/profiles/web
-#   dsh plugin --profile web add file:../<path-to>/dsh-deepseek-balance
-# then append the `insert` block below to ~/.dsh/profiles/web/cordis.patch.yml
-# (the profile's user patch layer), and restart the web profile.
+# This file is the package's own BUNDLE PATCH: package.json declares
+#   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+# so a harness that manages this package as a profile bundle (plugin manager UI,
+# desktop app, or `dsh plugin --profile <p> add <git-url>`) applies the block
+# below automatically — no hand editing.
+#
+# Manual install (local checkout / development, no bundle management):
+#   cd ~/.dsh/profiles/<p>
+#   dsh plugin --profile <p> add file:../<path-to>/dsh-deepseek-balance
+# then append the `insert` block below to ~/.dsh/profiles/<p>/cordis.patch.yml
+# (the profile's user patch layer) and restart the profile.
+# Pick ONE route per profile: bundle management already applies this file, so
+# also appending the row by hand would insert the plugin id twice.
 #
 # A single row activates both halves: the host plugin (polling, state file,
 # /dsbal/* routes) and, because the package declares `dsh.client`, the browser

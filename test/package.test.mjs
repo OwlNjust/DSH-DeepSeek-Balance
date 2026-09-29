@@ -84,6 +84,71 @@ ok('package: files 白名单覆盖运行时与随包文档，且都真实存在'
   assert(existsSync(join(ROOT, 'lib/client.js')) && existsSync(join(ROOT, 'lib/index.js')), 'lib 必须同时含宿主与客户端两半')
 })
 
+// ------------------------------------------------- display metadata (P2-4)
+ok('metadata: 声明 icon，并随包发布 icon/locale', () => {
+  assert(pkg.icon === './icon.svg', `package.json 顶层应声明 icon，实际 ${JSON.stringify(pkg.icon)}`)
+  assert(existsSync(join(ROOT, 'icon.svg')), 'icon.svg 不存在')
+  assert(pkg.exports?.['./locale/*.json'] === './locale/*.json', 'exports 应导出 ./locale/*.json')
+  for (const need of ['locale/*.json', 'icon.svg']) {
+    assert(pkg.files.includes(need), `files 缺少 ${need}（插件卡片会缺文字/图标）`)
+  }
+})
+
+ok('metadata: locale 文件是合法 JSON，且都带 meta.title/description', () => {
+  for (const lang of ['zh', 'en']) {
+    const file = join(ROOT, 'locale', `${lang}.json`)
+    assert(existsSync(file), `locale/${lang}.json 不存在`)
+    const doc = JSON.parse(read(`locale/${lang}.json`))
+    assert(typeof doc?.meta?.title === 'string' && doc.meta.title.trim() !== '', `${lang}.json 缺少 meta.title`)
+    assert(typeof doc?.meta?.description === 'string' && doc.meta.description.trim() !== '', `${lang}.json 缺少 meta.description`)
+  }
+})
+
+// ------------------------------------------------------ client artefact (i18n)
+ok('client: 文案集中在 STRINGS 表，zh/en 键一一对应', () => {
+  const client = read('lib/client.js')
+  const start = client.indexOf('const STRINGS = {')
+  const end = client.indexOf('function fill(')
+  assert(start > 0 && end > start, '未找到 STRINGS 表（客户端文案必须集中在该表）')
+  const block = client.slice(start, end)
+  const zh = [...block.matchAll(/'([a-zA-Z][\w.]*)':/g)].map((m) => m[1])
+  const counts = {}
+  for (const key of zh) counts[key] = (counts[key] || 0) + 1
+  const missing = Object.keys(counts).filter((key) => counts[key] !== 2)
+  assert(missing.length === 0, `以下键没有 zh/en 两份：${missing.join(', ')}`)
+  assert(zh.length >= 60, `文案表过小（${zh.length} 个键），检查是否漏搬字面量`)
+})
+
+ok('client: STRINGS 表之外不再有中文字面量（防回归到硬编码）', () => {
+  const client = read('lib/client.js')
+  const start = client.indexOf('const STRINGS = {')
+  const end = client.indexOf('function fill(')
+  const outside = client.slice(0, start) + client.slice(end)
+  const offenders = outside
+    .split('\n')
+    .map((line, index) => ({ line: line.trim(), index }))
+    .filter(({ line }) => !line.startsWith('//') && !line.startsWith('*') && !line.startsWith('/*'))
+    .filter(({ line }) => /[\u4e00-\u9fff]/.test(line))
+  assert(offenders.length === 0, `表外仍有中文：${offenders.map((o) => o.line.slice(0, 60)).join(' | ')}`)
+})
+
+ok('client: 跟随宿主语言（data.locale）+ 本地覆盖 + navigator 兜底', () => {
+  const client = read('lib/client.js')
+  assert(client.includes('detectLocale'), '缺少 detectLocale()')
+  assert(client.includes("localStorage.getItem(LANG_KEY)"), '缺少本地语言覆盖（dsb.lang）')
+  assert(client.includes('navigator.language'), '缺少 navigator 兜底')
+  assert(client.includes('data.locale') || client.includes('d.locale'), '未使用宿主下发的 locale')
+})
+
+ok('client: 请求失败不静默（检查 res.ok 并把原因上屏）', () => {
+  const client = read('lib/client.js')
+  assert(/res\.ok/.test(client), 'api() 必须检查 res.ok')
+  assert(client.includes('err.unauthorized'), '401 必须给出可操作的提示')
+  assert(client.includes('storageError'), '必须显示宿主下发的 storageError')
+  assert(/visibilityState/.test(client), '轮询必须在标签页隐藏时暂停')
+  assert(/pollIntervalMs/.test(client), '轮询周期必须跟随宿主下发的 pollIntervalMs')
+})
+
 // ------------------------------------------- bundle declaration (route A gate)
 ok('bundle: 声明 dsh.bundle.patch 且补丁文件存在', () => {
   assert(pkg.dsh?.bundle?.patch === './cordis.patch.yml', `dsh.bundle.patch 应为 ./cordis.patch.yml，实际 ${JSON.stringify(pkg.dsh?.bundle)}`)
@@ -128,10 +193,12 @@ ok('client: 保留 exports.inject = [\'slots\']（0.1.2-rc.1 起缺失即静默�
 })
 
 // ------------------------------------------------------------ host contract
-ok('host: inject 声明 timer/webServer/connection（认证门禁是硬依赖）', () => {
+ok('host: 具名导出 inject/apply，inject 声明 timer/webServer/connection', () => {
   const host = read('lib/index.js')
-  const m = host.match(/inject:\s*\[([^\]]*)\]/)
-  assert(m, '未找到 inject 声明')
+  assert(!/export default/.test(host), '宿主插件应使用具名导出（export const inject / export async function apply），不再用默认导出对象')
+  assert(/export const inject = \[/.test(host), '缺少 export const inject = [...]')
+  assert(/export async function apply\s*\(/.test(host), '缺少 export async function apply(...)')
+  const m = host.match(/export const inject = \[([^\]]*)\]/)
   for (const svc of ['timer', 'webServer', 'connection']) {
     assert(m[1].includes(`'${svc}'`), `inject 缺少 '${svc}'（connection 缺失 = 无认证门禁，必须拒绝激活）`)
   }

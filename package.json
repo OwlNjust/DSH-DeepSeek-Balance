@@ -5,6 +5,7 @@
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
+  "icon": "./icon.svg",
   "exports": {
     ".": {
       "default": "./lib/index.js"
@@ -13,10 +14,13 @@
       "default": "./lib/client.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
+    "locale/*.json",
+    "icon.svg",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -39,7 +43,7 @@
     }
   },
   "scripts": {
-    "test": "node test/phase.test.mjs && node test/window.test.mjs && node test/routes.test.mjs && node test/package.test.mjs",
-    "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/phase.js && node --check lib/window.js && node --check lib/deepseek.js && node --check lib/validate.js"
+    "test": "node test/phase.test.mjs && node test/window.test.mjs && node test/config.test.mjs && node test/store.test.mjs && node test/i18n.test.mjs && node test/routes.test.mjs && node test/package.test.mjs",
+    "check": "for f in lib/*.js; do node --check \"$f\" || exit 1; done"
   }
 }

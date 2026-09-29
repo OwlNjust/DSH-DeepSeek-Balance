@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "DeepSeek balance & usage monitor",
+    "description": "Floating bottom-right widget: total and topped-up balance, spend per period and per model, the three token counters, plus the peak (梁文峰) / off-peak (梁文谷) price window reminder."
+  }
+}

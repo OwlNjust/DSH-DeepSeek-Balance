@@ -6,7 +6,7 @@
 //
 // Regression this file exists for: /dsbal/window used to fall back to 'today'
 // whenever the id was missing or unknown, so probing the route with an empty
-// body silently overwrote the user's window setting (MAINTENANCE-NOTES #11).
+// body silently overwrote the user's window setting.
 // A missing/unknown id must now be a 400, never a state change.
 
 import { readFileSync } from 'node:fs'

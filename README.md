@@ -111,7 +111,7 @@ DeepSeek **API key** (and, optionally, the platform **userToken**) → **保存*
 - **Price window reminder** — 🔴 **梁文峰** (peak: Beijing Mon–Fri 09:00–12:00 & 14:00–18:00,
   **excluding Chinese statutory holidays**, ×2 price) vs 🟢 **梁文谷** (off-peak: everything else,
   **including weekends and statutory holidays all day**, 50% price), live countdown,
-  red highlight during peak and a 🎉 badge on holidays. Windows follow the
+  red highlight during peak and a 🎉 badge on holidays. The price windows follow the
   [official pricing docs](https://api-docs.deepseek.com/zh-cn/quick_start/pricing).
 - **Draggable placement** — **right-click press-and-drag** the pill to move it anywhere;
   the position is remembered automatically (left click simply expands the panel).

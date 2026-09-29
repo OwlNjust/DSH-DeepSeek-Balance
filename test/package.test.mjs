@@ -1,8 +1,7 @@
 // Packaging-contract tests for dsh-deepseek-balance.
 //
 // The other two suites test behaviour; this one tests the *packaging* facts the
-// harness needs in order to activate the plugin at all, i.e. exactly the surface
-// that broke on 2026-09-29 (MAINTENANCE-NOTES #12):
+// harness needs in order to activate the plugin at all:
 //   * deepseek-harness ≥ 0.2.0 only treats a package as an installable profile
 //     layer when it declares `dsh.bundle.patch` — without it the plugin manager
 //     answers `not-a-bundle`;
@@ -72,7 +71,7 @@ ok('package: 声明 dsh.client.platform = web（浏览器半边随包激活）',
 })
 
 ok('package: 刻意不声明 peerDependencies（跨 harness 版本零约束）', () => {
-  assert(pkg.peerDependencies === undefined, '不要声明 peerDependencies：声明后用户升级 harness 会被判"不兼容"而需豁免（见维护手册 0.2.0 复检）')
+  assert(pkg.peerDependencies === undefined, '不要声明 peerDependencies：声明后用户升级 harness 会被判"不兼容"而需豁免')
 })
 
 ok('package: files 白名单覆盖运行时与随包文档，且都真实存在', () => {
@@ -123,7 +122,7 @@ ok('client: __ModuleLoader__ 的 id 必须等于包名（组合路由键）', ()
 
 ok('client: 保留 exports.inject = [\'slots\']（0.1.2-rc.1 起缺失即静默消失）', () => {
   const client = read('lib/client.js')
-  assert(/const inject\s*=\s*\[\s*'slots'\s*\]/.test(client), "缺少 inject = ['slots']：纤程不会等服务就绪，小组件会静默消失（MAINTENANCE-NOTES #9）")
+  assert(/const inject\s*=\s*\[\s*'slots'\s*\]/.test(client), "缺少 inject = ['slots']：纤程不会等服务就绪，小组件会静默消失")
   assert(client.includes('exports.inject = inject'), '缺少 exports.inject = inject（服务门控读的是模块导出字段）')
   assert(client.includes('exports.apply = apply'), '缺少 exports.apply = apply')
 })

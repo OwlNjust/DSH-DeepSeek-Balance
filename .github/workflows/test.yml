@@ -1,9 +1,7 @@
-# CI: syntax check + phase-algorithm unit tests.
+# CI: syntax check + unit tests.
 #
-# Runs on GitHub's runners, so it is independent of this machine's network.
-# (Pushes used to have to go out from the Windows side because WSL could not
-# reach github.com; since 2026-09-29 a machine-level proxy makes WSL able to
-# push directly. Either way, everything from here on happens in the cloud.)
+# Runs on GitHub's runners: nothing here depends on any developer machine, so it
+# works the same for a fork, a clone or a push from anywhere.
 #
 # The package has ZERO runtime dependencies, so no `npm install` step is needed:
 # the test only imports node: builtins. Keep it that way and CI stays fast and

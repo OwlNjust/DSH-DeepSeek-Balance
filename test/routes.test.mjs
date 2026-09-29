@@ -1,33 +1,28 @@
-// Unit tests for the /dsbal/* request validation in lib/index.js.
+// Unit tests for the /dsbal/* request validation in lib/validate.js.
 //
-// Like test/phase.test.mjs, this extracts the real code from lib/index.js —
-// between the `// ---- requests:begin` / `// ---- requests:end ----` markers —
-// so the tests cannot drift from what ships. Run: node test/routes.test.mjs
+// The validators are pure and live in their own module, so this suite imports
+// them directly instead of slicing source text out of lib/index.js.
+// Run: node test/routes.test.mjs
 //
 // Regression this file exists for: /dsbal/window used to fall back to 'today'
 // whenever the id was missing or unknown, so probing the route with an empty
 // body silently overwrote the user's window setting.
-// A missing/unknown id must now be a 400, never a state change.
+// A missing/unknown id must now be a 400, never a state change. The bounds
+// (fromMs age/future, credential length, API-key shape) are the second half:
+// they stop a caller from driving unbounded upstream usage requests or writing
+// oversized blobs into the state file.
 
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import {
+  MAX_API_KEY_LEN,
+  MAX_CUSTOM_AGE_MS,
+  MAX_TOKEN_LEN,
+  WINDOW_IDS,
+  parseConfigRequest,
+  parseWindowRequest,
+  validateApiKeyForSave,
+} from '../lib/validate.js'
 
-const HERE = dirname(fileURLToPath(import.meta.url))
-const SOURCE = join(HERE, '..', 'lib', 'index.js')
-
-function loadRequests() {
-  const src = readFileSync(SOURCE, 'utf8')
-  const begin = src.indexOf('// ---- requests:begin')
-  const end = src.indexOf('// ---- requests:end ----')
-  if (begin < 0 || end < 0 || end <= begin) {
-    throw new Error('requests markers not found in lib/index.js — keep the // ---- requests:begin / end ---- comments')
-  }
-  const block = src.slice(src.indexOf('\n', begin) + 1, end)
-  return new Function(block + '\nreturn { parseWindowRequest, parseConfigRequest, WINDOW_IDS }')()
-}
-
-const { parseWindowRequest, parseConfigRequest, WINDOW_IDS } = loadRequests()
+const NOW = 1758700000000
 
 let failed = 0
 let passed = 0
@@ -56,55 +51,70 @@ const throws = (fn, needle) => {
 }
 
 // ------------------------------------------------------- the original incident
-ok('window: 空 body 抛错，绝不回退成 today（回归 #11）', () => {
-  throws(() => parseWindowRequest(''), 'window:')
-  throws(() => parseWindowRequest('{}'), 'window:')
-  throws(() => parseWindowRequest(null), 'window:')
+ok('window: 空 body 抛错，绝不回退成 today（回归）', () => {
+  throws(() => parseWindowRequest('', NOW), 'window:')
+  throws(() => parseWindowRequest('{}', NOW), 'window:')
+  throws(() => parseWindowRequest(null, NOW), 'window:')
 })
 ok('window: 未知 id 抛错并列出合法值', () => {
-  throws(() => parseWindowRequest('{"id":"month"}'), 'window:')
+  throws(() => parseWindowRequest('{"id":"month"}', NOW), 'window:')
   try {
-    parseWindowRequest('{"id":"month"}')
+    parseWindowRequest('{"id":"month"}', NOW)
   } catch (error) {
     for (const id of WINDOW_IDS) assert(error.message.includes(id), `错误信息未列出 ${id}`)
   }
 })
 ok('window: id 非字符串（数字/布尔/数组）一律抛错', () => {
-  throws(() => parseWindowRequest('{"id":24}'))
-  throws(() => parseWindowRequest('{"id":true}'))
-  throws(() => parseWindowRequest('{"id":["today"]}'))
+  throws(() => parseWindowRequest('{"id":24}', NOW))
+  throws(() => parseWindowRequest('{"id":true}', NOW))
+  throws(() => parseWindowRequest('{"id":["today"]}', NOW))
 })
 
 // ------------------------------------------------------------- valid requests
 ok('window: 四个合法 id 原样通过', () => {
   for (const id of WINDOW_IDS) {
-    const got = parseWindowRequest(JSON.stringify({ id }))
+    const got = parseWindowRequest(JSON.stringify({ id }), NOW)
     assert(got.id === id, `id ${id} 未正确返回`)
     assert(got.fromMs === null, `${id} 的 fromMs 应为 null`)
   }
 })
-ok('window: custom + 数字 fromMs 通过', () => {
-  const got = parseWindowRequest('{"id":"custom","fromMs":1758700000000}')
+ok('window: custom + 范围内的数字 fromMs 通过', () => {
+  const fromMs = NOW - 86400000
+  const got = parseWindowRequest(JSON.stringify({ id: 'custom', fromMs }), NOW)
   assert(got.id === 'custom', 'id 应为 custom')
-  assert(got.fromMs === 1758700000000, 'fromMs 未透传')
+  assert(got.fromMs === fromMs, 'fromMs 未透传')
 })
 ok('window: custom 不带 fromMs 合法（等用户选日期）', () => {
-  const got = parseWindowRequest('{"id":"custom"}')
+  const got = parseWindowRequest('{"id":"custom"}', NOW)
   assert(got.fromMs === null, 'fromMs 应为 null')
 })
-ok('window: fromMs 类型错误抛错（字符串/NaN/null）', () => {
-  throws(() => parseWindowRequest('{"id":"custom","fromMs":"2026-01-01"}'), 'fromMs')
-  throws(() => parseWindowRequest('{"id":"custom","fromMs":null}'), 'fromMs')
+ok('window: fromMs 类型错误抛错（字符串/NaN/null/布尔）', () => {
+  throws(() => parseWindowRequest('{"id":"custom","fromMs":"2026-01-01"}', NOW), 'fromMs')
+  throws(() => parseWindowRequest('{"id":"custom","fromMs":null}', NOW), 'fromMs')
+  throws(() => parseWindowRequest('{"id":"custom","fromMs":true}', NOW), 'fromMs')
 })
+
+// ------------------------------------------- bounds: no unbounded upstream work
+ok('window: fromMs 不能晚于当前时间（防未来值）', () => {
+  throws(() => parseWindowRequest(JSON.stringify({ id: 'custom', fromMs: NOW + 1 }), NOW), '不能晚于当前时间')
+  assert(parseWindowRequest(JSON.stringify({ id: 'custom', fromMs: NOW }), NOW).fromMs === NOW, 'fromMs = now 应通过')
+})
+ok('window: fromMs 最早 90 天前（边界含端点，防诱发海量用量请求）', () => {
+  const oldest = NOW - MAX_CUSTOM_AGE_MS
+  assert(parseWindowRequest(JSON.stringify({ id: 'custom', fromMs: oldest }), NOW).fromMs === oldest, '恰好 90 天前应通过')
+  throws(() => parseWindowRequest(JSON.stringify({ id: 'custom', fromMs: oldest - 1 }), NOW), '最早为 90 天前')
+  throws(() => parseWindowRequest('{"id":"custom","fromMs":0}', NOW), '最早为 90 天前')
+})
+
 
 // ------------------------------------------------------------- malformed body
 ok('window/config: 非法 JSON 给出可读错误', () => {
-  throws(() => parseWindowRequest('not json'), '不是合法 JSON')
+  throws(() => parseWindowRequest('not json', NOW), '不是合法 JSON')
   throws(() => parseConfigRequest('{oops'), '不是合法 JSON')
 })
 ok('window/config: 非对象 body（数组/标量）抛错', () => {
   for (const body of ['[]', 'null', '"today"', '24', 'true']) {
-    throws(() => parseWindowRequest(body), '应为 JSON 对象')
+    throws(() => parseWindowRequest(body, NOW), '应为 JSON 对象')
   }
   throws(() => parseConfigRequest('[]'), '应为 JSON 对象')
 })
@@ -135,6 +145,24 @@ ok('config: 已知字段类型错误抛错（避免"看起来成功了"）', () 
 ok('config: clear 只有布尔 true 才生效', () => {
   assert(parseConfigRequest('{"clear":true}').clear === true, 'true 应生效')
   assert(parseConfigRequest('{"clear":false}').clear === false, 'false 不应生效')
+})
+
+// ------------------------------------------------ bounds on credential payloads
+ok('config: 凭据字段有长度上限（拒绝超大 blob 落盘）', () => {
+  const longKey = 'sk-' + 'a'.repeat(MAX_API_KEY_LEN)
+  throws(() => parseConfigRequest(JSON.stringify({ apiKey: longKey })), 'apiKey 过长')
+  const longToken = 'x'.repeat(MAX_TOKEN_LEN + 1)
+  throws(() => parseConfigRequest(JSON.stringify({ platformToken: longToken })), 'platformToken 过长')
+  const okKey = 'sk-' + 'a'.repeat(MAX_API_KEY_LEN - 3)
+  assert(parseConfigRequest(JSON.stringify({ apiKey: okKey })).apiKey.length === MAX_API_KEY_LEN, '上限内的 key 应通过')
+})
+ok('config: 保存时校验 API Key 形态（防把 userToken 粘进 Key 字段）', () => {
+  assert(validateApiKeyForSave('') === '', '空值应原样返回（= 清空/不改）')
+  assert(validateApiKeyForSave(null) === '', 'null 应视为空')
+  assert(validateApiKeyForSave('  sk-abcdefgh1234  ') === 'sk-abcdefgh1234', '合法 key 应 trim 后返回')
+  throws(() => validateApiKeyForSave('x'.repeat(64)), 'sk- 开头')
+  throws(() => validateApiKeyForSave('sk-short'), 'sk- 开头')
+  throws(() => validateApiKeyForSave('Bearer sk-abcdefgh1234'), 'sk- 开头')
 })
 
 console.log(`\n${passed} passed, ${failed} failed`)

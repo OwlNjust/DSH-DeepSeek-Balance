@@ -128,12 +128,41 @@ ok('client: 保留 exports.inject = [\'slots\']（0.1.2-rc.1 起缺失即静默�
 })
 
 // ------------------------------------------------------------ host contract
-ok('host: inject 声明 timer/webServer，且测试抽取用的四个 marker 都在', () => {
+ok('host: inject 声明 timer/webServer/connection（认证门禁是硬依赖）', () => {
   const host = read('lib/index.js')
-  assert(/inject:\s*\[\s*'timer'\s*,\s*'webServer'\s*\]/.test(host), "宿主插件应声明 inject: ['timer', 'webServer']")
-  for (const marker of ['// ---- phase:begin', '// ---- phase:end ----', '// ---- requests:begin', '// ---- requests:end ----']) {
-    assert(host.includes(marker), `缺少 marker「${marker}」，test/phase.test.mjs 与 test/routes.test.mjs 靠它抽取真实代码`)
+  const m = host.match(/inject:\s*\[([^\]]*)\]/)
+  assert(m, '未找到 inject 声明')
+  for (const svc of ['timer', 'webServer', 'connection']) {
+    assert(m[1].includes(`'${svc}'`), `inject 缺少 '${svc}'（connection 缺失 = 无认证门禁，必须拒绝激活）`)
   }
+})
+
+ok('host: /dsbal/* 全部走认证门禁，不存在裸注册（安全回归闸门）', () => {
+  const host = read('lib/index.js')
+  assert(host.includes('ctx.connection'), 'host 必须使用 ctx.connection 作为请求门禁')
+  assert(/\.admit\(/.test(host), 'host 必须调用 connection.admit()')
+  const registers = [...host.matchAll(/webServer\.register\(/g)]
+  assert(registers.length === 1, `webServer.register 只应出现在 registerRoute 内一次，实际 ${registers.length} 次（新增路由必须走 registerRoute）`)
+  const routes = [...host.matchAll(/registerRoute\('([A-Z]+)',\s*'([^']+)'/g)].map((m) => `${m[1]} ${m[2]}`)
+  for (const route of ['GET /dsbal/state', 'POST /dsbal/refresh', 'POST /dsbal/config', 'POST /dsbal/window']) {
+    assert(routes.includes(route), `缺少路由「${route}」，实际：${routes.join(', ')}`)
+  }
+  assert(routes.length === 4, `路由数应为 4，实际 ${routes.length}：${routes.join(', ')}`)
+})
+
+ok('host: 时段算法的 phase marker 仍在（test/phase.test.mjs 靠它抽取）', () => {
+  const host = read('lib/index.js')
+  for (const marker of ['// ---- phase:begin', '// ---- phase:end ----']) {
+    assert(host.includes(marker), `缺少 marker「${marker}」`)
+  }
+})
+
+ok('host: 请求校验已抽到 lib/validate.js，index.js 不再重复实现', () => {
+  assert(existsSync(join(ROOT, 'lib/validate.js')), 'lib/validate.js 不存在')
+  const host = read('lib/index.js')
+  assert(/from '\.\/validate\.js'/.test(host), 'lib/index.js 应从 ./validate.js 导入校验器')
+  assert(!host.includes('function parseWindowRequest'), 'lib/index.js 不应再自带 parseWindowRequest（会与 validate.js 分叉）')
+  assert(!host.includes('function parseConfigRequest'), 'lib/index.js 不应再自带 parseConfigRequest')
 })
 
 ok('host: 客户端半边只依赖 react（不引入额外外部模块）', () => {
